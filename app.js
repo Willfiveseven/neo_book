@@ -105,6 +105,8 @@ function saveState() {
   localStorage.setItem("haji_appearance", JSON.stringify(state.appearance));
   localStorage.setItem("haji_period", JSON.stringify(state.period));
   localStorage.setItem("haji_budget", String(state.budget));
+  localStorage.setItem("haji_billCustomRange", JSON.stringify(state.billCustomRange));
+  localStorage.setItem("haji_statsCustomRange", JSON.stringify(state.statsCustomRange));
 }
 
 function money(value) {

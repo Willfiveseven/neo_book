@@ -1,4 +1,4 @@
-const CACHE_NAME = 'haji-book-v6';
+const CACHE_NAME = 'haji-book-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -11,8 +11,7 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // 在请求后面加上时间戳参数，强制绕过 HTTP 缓存下载最新文件
-      const requests = ASSETS_TO_CACHE.map(url => new Request(url, { cache: 'no-cache' }));
+      const requests = ASSETS_TO_CACHE.map(url => new Request(url, { cache: 'no-store' }));
       return cache.addAll(requests);
     })
   );
