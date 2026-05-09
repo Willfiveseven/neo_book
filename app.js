@@ -957,6 +957,18 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(registration => {
       console.log('SW registered: ', registration);
+      
+      // 监听新版本的 Service Worker
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        newWorker.addEventListener('statechange', () => {
+          // 当新版本安装完毕，且接管控制权时，强制刷新页面
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            console.log('New update available, reloading...');
+            window.location.reload();
+          }
+        });
+      });
     }).catch(registrationError => {
       console.log('SW registration failed: ', registrationError);
     });
