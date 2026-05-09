@@ -67,6 +67,7 @@ const state = {
   currentCategory: "餐饮",
   editingId: null,
   managingType: "expense",
+  statsType: "expense",
   chartType: "bar",
   statsRange: "period",
   billCustomRange: { start: "", end: "" },
@@ -177,13 +178,40 @@ function daysInCurrentPeriod() {
   return Math.max(days, 1);
 }
 
+function daysLeftInCurrentPeriod() {
+  const range = periodRange();
+  const today = new Date(`${todayISO}T00:00:00`);
+  const end = new Date(`${range.end}T00:00:00`);
+  // 如果今天已经超过了结束日期，剩余天数为1（避免除以0）
+  if (today > end) return 1;
+  // 如果今天还没到开始日期，剩余天数等于总天数
+  const start = new Date(`${range.start}T00:00:00`);
+  if (today < start) return daysInCurrentPeriod();
+  
+  const daysLeft = Math.round((end - today) / 86400000) + 1;
+  return Math.max(daysLeft, 1);
+}
+
+function getEffectiveBudget() {
+  const expenseCategories = state.categories.expense || [];
+  const categoryBudgetSum = expenseCategories.reduce((sum, cat) => sum + Number(cat.budget || 0), 0);
+  return categoryBudgetSum > 0 ? categoryBudgetSum : (state.budget || 0);
+}
+
 function dailyBudget() {
-  return state.budget ? state.budget / daysInCurrentPeriod() : 0;
+  const totalB = getEffectiveBudget();
+  if (!totalB) return 0;
+  // 计算当前周期内的总支出
+  const expenseTotal = totals().expense;
+  // 计算剩余预算
+  const left = Math.max(totalB - expenseTotal, 0);
+  // 动态计算：剩余预算 / 剩余天数
+  return left / daysLeftInCurrentPeriod();
 }
 
 function todayExpense() {
   return state.records
-    .filter((record) => record.type === "expense" && record.date === todayISO)
+    .filter((record) => record.type === "expense" && record.date === todayISO && !record.excluded)
     .reduce((sum, record) => sum + Number(record.amount), 0);
 }
 
@@ -191,7 +219,7 @@ function checkDailyBudgetReminder() {
   const limit = dailyBudget();
   const spent = todayExpense();
   if (!limit || spent <= limit) return;
-  alert(`今日支出 ${money(spent)} 已超过日均预算 ${money(limit)}，建议放慢一点。`);
+  alert(`今日有效支出 ${money(spent)} 已超过今日可用余额 ${money(limit)}，建议放慢一点。`);
 }
 
 function sortedRecords(records = state.records) {
@@ -222,18 +250,20 @@ function renderMonthLabel() {
 function renderOverview() {
   const total = totals();
   const balance = total.income - total.expense;
-  const left = Math.max(state.budget - total.expense, 0);
-  const percent = state.budget ? Math.min((total.expense / state.budget) * 100, 100) : 0;
+  const currentB = getEffectiveBudget();
+  const left = Math.max(currentB - total.expense, 0);
+  const percent = currentB ? Math.min((total.expense / currentB) * 100, 100) : 0;
 
   $("#monthExpense").textContent = money(total.expense);
   $("#monthIncome").textContent = money(total.income);
   $("#monthBalance").textContent = money(balance);
+  $("#heroBudgetBalance").textContent = money(left);
   $("#budgetUsedText").textContent = `已用 ${money(total.expense)}`;
-  $("#budgetLeftText").textContent = `剩余 ${money(left)}`;
-  $("#dailyBudgetText").textContent = `日均预算 ${money(dailyBudget())}`;
+  $("#budgetLeftText").textContent = `剩余 ${money(left)} / 剩 ${daysLeftInCurrentPeriod()} 天`;
+  $("#dailyBudgetText").textContent = `今日可用 ${money(dailyBudget())}`;
   $("#todayExpenseText").textContent = `今日支出 ${money(todayExpense())}`;
   $("#budgetProgress").style.width = `${percent}%`;
-  $("#settingsBudget").textContent = money(state.budget);
+  $("#settingsBudget").textContent = money(currentB);
 }
 
 function recordTemplate(record) {
@@ -243,7 +273,7 @@ function recordTemplate(record) {
       <button type="button" data-edit-record="${record.id}" aria-label="编辑${record.category}">
         <div class="record-icon">${record.icon || "其"}</div>
         <div class="record-main">
-          <strong>${record.category}</strong>
+          <strong>${record.category}${record.excluded ? '<span class="excluded-tag">不计入</span>' : ''}</strong>
           <span>${record.date}${record.note ? ` · ${record.note}` : ""}</span>
         </div>
         <div class="record-amount ${record.type}">${sign}${money(record.amount)}</div>
@@ -283,24 +313,34 @@ function renderStats() {
   $("#statsCustomRange").classList.toggle("hidden", state.statsRange !== "custom");
   $("#statsStartDate").value = state.statsCustomRange.start;
   $("#statsEndDate").value = state.statsCustomRange.end;
+  
+  $$("#statsTypeSegmented [data-stats-type]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.statsType === state.statsType);
+  });
+  
+  const typeLabel = state.statsType === "expense" ? "支出" : "收入";
+  $("#statsTopLabel").textContent = `最大${typeLabel}`;
+  $("#statsDailyLabel").textContent = `日均${typeLabel}`;
+  $("#statsChartTitle").textContent = `${typeLabel}可视化`;
+
   const rangeRecords = recordsForRange(state.statsRange, state.statsCustomRange);
-  const expenses = rangeRecords.filter((record) => record.type === "expense");
-  const categoryTotals = expenses.reduce((acc, record) => {
+  const filteredRecords = rangeRecords.filter((record) => record.type === state.statsType && !record.excluded);
+  const categoryTotals = filteredRecords.reduce((acc, record) => {
     acc[record.category] = (acc[record.category] || 0) + Number(record.amount);
     return acc;
   }, {});
   const entries = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
   const max = entries[0];
-  const expenseTotal = expenses.reduce((sum, record) => sum + Number(record.amount), 0);
+  const recordTotal = filteredRecords.reduce((sum, record) => sum + Number(record.amount), 0);
   const colors = ["#1f9d7a", "#f3bc45", "#ee6a70", "#4e7dd9", "#8b6ee8", "#37a7a3", "#dd8a3d", "#6d7773"];
 
   const invalidCustomRange = state.statsRange === "custom" && !customRangeIsValid(state.statsCustomRange);
   $("#topCategory").textContent = invalidCustomRange ? "日期无效" : max ? `${max[0]} ${money(max[1])}` : "暂无";
-  $("#dailyAverage").textContent = money(expenseTotal / daysForStatsRange(state.statsRange, rangeRecords));
+  $("#dailyAverage").textContent = money(recordTotal / daysForStatsRange(state.statsRange, rangeRecords));
   $("#categoryBars").innerHTML = entries.length
     ? entries
         .map(([name, value], index) => {
-          const width = expenseTotal ? Math.max((value / expenseTotal) * 100, 4) : 0;
+          const width = recordTotal ? Math.max((value / recordTotal) * 100, 4) : 0;
           return `
             <div class="bar-row">
               <div class="bar-label"><span>${name}</span><strong>${money(value)}</strong></div>
@@ -311,15 +351,15 @@ function renderStats() {
         .join("")
     : invalidCustomRange
       ? `<div class="empty-state">请选择有效的开始日期和结束日期。</div>`
-      : `<div class="empty-state">有支出后会显示分类占比。</div>`;
-  renderPieChart(entries, expenseTotal, colors);
+      : `<div class="empty-state">有${typeLabel}后会显示分类占比。</div>`;
+  renderPieChart(entries, recordTotal, colors, typeLabel);
   renderChartMode();
 }
 
-function renderPieChart(entries, expenseTotal, colors) {
+function renderPieChart(entries, expenseTotal, colors, typeLabel = "支出") {
   if (!entries.length || !expenseTotal) {
     $("#pieChart").style.background = "var(--line)";
-    $("#pieLegend").innerHTML = `<div class="empty-state">有支出后会显示饼图。</div>`;
+    $("#pieLegend").innerHTML = `<div class="empty-state">有${typeLabel}后会显示饼图。</div>`;
     return;
   }
 
@@ -509,6 +549,7 @@ function renderCategoryManager() {
         <div class="category-manage-item">
           <span>${category.icon}</span>
           <strong>${category.name}</strong>
+          ${state.managingType === "expense" ? `<input type="number" class="category-budget-input" data-budget-category="${category.name}" placeholder="预算(可选)" value="${category.budget || ''}" min="0" step="1" />` : `<div></div>`}
           <button type="button" data-remove-category="${category.name}" aria-label="删除${category.name}">×</button>
         </div>
       `
@@ -541,6 +582,7 @@ function openEntry(record = null) {
   $("#amountInput").value = record?.amount || "";
   $("#dateInput").value = record?.date || todayISO;
   $("#noteInput").value = record?.note || "";
+  $("#excludedInput").checked = record?.excluded || false;
   $("#entryModal").showModal();
   $("#amountInput").focus();
 }
@@ -555,6 +597,7 @@ function saveRecord(event) {
     icon: categoryButton?.dataset.icon || getCategory(state.currentType, state.currentCategory)?.icon || "其",
     note: $("#noteInput").value.trim(),
     date: $("#dateInput").value,
+    excluded: $("#excludedInput").checked,
   };
 
   if (state.editingId) {
@@ -567,7 +610,11 @@ function saveRecord(event) {
   renderAll();
   $("#entryModal").close();
   switchTab("home");
-  if (payload.type === "expense" && payload.date === todayISO) checkDailyBudgetReminder();
+  
+  // 延迟检查预算，让模态框先关闭，并且如果是“不计入”账单，就不检查超支
+  if (payload.type === "expense" && payload.date === todayISO && !payload.excluded) {
+    setTimeout(checkDailyBudgetReminder, 100);
+  }
 }
 
 function deleteCurrentRecord() {
@@ -696,6 +743,13 @@ function bindEvents() {
     renderStats();
   });
   
+  $$("#statsTypeSegmented [data-stats-type]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.statsType = button.dataset.statsType;
+      renderAll(); // 这里改为 renderAll 或者是 renderStats() 均可，但为了确保所有状态更新，这里使用 renderStats()
+    });
+  });
+
   $("#statsStartDate").addEventListener("change", (e) => {
     state.statsCustomRange.start = e.target.value;
     renderStats();
@@ -726,6 +780,12 @@ function bindEvents() {
 
   $$("[data-open-budget]").forEach((button) => {
     button.addEventListener("click", () => {
+      const expenseCategories = state.categories.expense || [];
+      const categoryBudgetSum = expenseCategories.reduce((sum, cat) => sum + Number(cat.budget || 0), 0);
+      if (categoryBudgetSum > 0) {
+        alert(`当前已开启分类预算，总预算由各分类预算相加得出（共计 ${money(categoryBudgetSum)}）。如需修改，请在“我的 -> 分类管理”中调整各分类的预算金额。`);
+        return;
+      }
       $("#budgetInput").value = state.budget;
       $("#budgetModal").showModal();
     });
@@ -754,6 +814,20 @@ function bindEvents() {
       renderCategoryManager();
     });
   });
+  $("#categoryManageList").addEventListener("change", (event) => {
+    if (event.target.classList.contains("category-budget-input")) {
+      const name = event.target.dataset.budgetCategory;
+      const val = Number(event.target.value) || 0;
+      const category = state.categories.expense.find(c => c.name === name);
+      if (category) {
+        if (val > 0) category.budget = val;
+        else delete category.budget;
+        saveState();
+        renderAll();
+      }
+    }
+  });
+
   $("#categoryManageList").addEventListener("click", (event) => {
     const button = event.target.closest("[data-remove-category]");
     if (button) removeCategory(button.dataset.removeCategory);

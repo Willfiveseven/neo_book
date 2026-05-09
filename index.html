@@ -32,6 +32,10 @@
           <article class="hero-panel">
             <p>本月支出</p>
             <strong id="monthExpense">¥0.00</strong>
+            <div class="hero-budget-balance">
+              <span>预算结余</span>
+              <b id="heroBudgetBalance">¥0.00</b>
+            </div>
             <div class="hero-grid">
               <span>收入 <b id="monthIncome">¥0.00</b></span>
               <span>结余 <b id="monthBalance">¥0.00</b></span>
@@ -107,6 +111,10 @@
               <option value="custom">自定义日期</option>
             </select>
           </div>
+          <div class="segmented" id="statsTypeSegmented" style="margin-bottom: 16px;">
+            <button type="button" class="active" data-stats-type="expense">支出</button>
+            <button type="button" data-stats-type="income">收入</button>
+          </div>
           <div class="date-filter hidden" id="statsCustomRange">
             <label class="text-field">
               <span>开始日期</span>
@@ -119,17 +127,17 @@
           </div>
           <div class="stats-grid">
             <article>
-              <span>最大支出</span>
+              <span id="statsTopLabel">最大支出</span>
               <strong id="topCategory">暂无</strong>
             </article>
             <article>
-              <span>日均支出</span>
+              <span id="statsDailyLabel">日均支出</span>
               <strong id="dailyAverage">¥0</strong>
             </article>
           </div>
           <section class="chart-panel">
             <div class="chart-header">
-              <h3>支出可视化</h3>
+              <h3 id="statsChartTitle">支出可视化</h3>
               <div class="mini-segmented" aria-label="图表类型">
                 <button type="button" class="active" data-chart="bar">柱状图</button>
                 <button type="button" data-chart="pie">饼图</button>
@@ -137,7 +145,7 @@
             </div>
             <div class="bars" id="categoryBars"></div>
             <div class="pie-panel hidden" id="piePanel">
-              <div class="pie-chart" id="pieChart" aria-label="支出分类饼图"></div>
+              <div class="pie-chart" id="pieChart" aria-label="分类饼图"></div>
               <div class="pie-legend" id="pieLegend"></div>
             </div>
           </section>
@@ -224,6 +232,11 @@
         <label class="text-field">
           <span>备注</span>
           <input id="noteInput" type="text" maxlength="24" placeholder="可选" />
+        </label>
+
+        <label class="checkbox-field">
+          <input id="excludedInput" type="checkbox" />
+          <span>不计入日常统计 (不触发超支提醒，不计入图表)</span>
         </label>
 
         <div class="form-actions">
