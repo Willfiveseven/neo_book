@@ -1,4 +1,4 @@
-const CACHE_NAME = 'haji-book-v5';
+const CACHE_NAME = 'haji-book-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -8,17 +8,17 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  // 强制立即接管控制权，跳过等待
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      // 在请求后面加上时间戳参数，强制绕过 HTTP 缓存下载最新文件
+      const requests = ASSETS_TO_CACHE.map(url => new Request(url, { cache: 'no-cache' }));
+      return cache.addAll(requests);
     })
   );
 });
 
 self.addEventListener('activate', (event) => {
-  // 立即声明控制客户端
   event.waitUntil(self.clients.claim());
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -35,13 +35,20 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   event.respondWith(
-    caches.match(event.request)
+    fetch(event.request)
       .then((response) => {
-        // Return cached version or fetch from network
-        return response || fetch(event.request).then((fetchResponse) => {
-          // Optional: dynamically cache new resources
-          return fetchResponse;
-        });
+        // 如果网络请求成功，就克隆一份放进缓存里（动态更新缓存）
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        // 网络请求失败（离线状态），再退回到缓存读取
+        return caches.match(event.request);
       })
   );
 });
