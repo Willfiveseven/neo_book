@@ -583,6 +583,11 @@ function renderCategoryManager() {
     button.classList.toggle("active", button.dataset.categoryType === state.managingType);
   });
 
+  const clearBtn = $("#clearAllCategoryBudgets");
+  if (clearBtn) {
+    clearBtn.style.display = state.managingType === "expense" ? "block" : "none";
+  }
+
   $("#categoryManageList").innerHTML = state.categories[state.managingType]
     .map(
       (category) => `
@@ -869,6 +874,28 @@ function bindEvents() {
       renderCategoryManager();
     });
   });
+  
+  $("#clearAllCategoryBudgets").addEventListener("click", () => {
+    if (!confirm("确定要清除所有已设置的分类预算吗？")) return;
+    if (state.categories.expense) {
+      let changed = false;
+      state.categories.expense.forEach(category => {
+        if (category.budget !== undefined) {
+          delete category.budget;
+          changed = true;
+        }
+      });
+      if (changed) {
+        saveState();
+        renderAll();
+        renderCategoryManager();
+        alert("已清除所有分类预算！");
+      } else {
+        alert("当前没有设置任何分类预算。");
+      }
+    }
+  });
+
   $("#categoryManageList").addEventListener("change", (event) => {
     if (event.target.classList.contains("category-budget-input")) {
       const name = event.target.dataset.budgetCategory;
