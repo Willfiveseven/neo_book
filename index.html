@@ -13,7 +13,7 @@
     <div class="app-shell">
       <section class="splash" id="splash" aria-label="加载中">
         <div class="splash-mark">¥</div>
-        <h1>献给哈基悦宝</h1>
+        <h1>好好存钱哦</h1>
         <p>正在整理今天的小账本</p>
       </section>
 
@@ -181,7 +181,7 @@
 
         <section class="screen" data-screen="me">
           <div class="profile-block">
-            <div class="avatar">悦</div>
+            <div class="avatar">Neo</div>
             <div>
               <h2>轻量记账</h2>
               <p>只记录收支、统计和预算。</p>
@@ -502,6 +502,16 @@
           <button type="button" class="icon-button" id="closeDayRecordsBtn" aria-label="关闭">×</button>
         </div>
         <div class="record-list" id="dayRecordsList" style="max-height: 60vh; overflow-y: auto; padding-right: 4px;"></div>
+      </form>
+    </dialog>
+
+    <dialog class="entry-modal" id="categoryRecordsModal">
+      <form method="dialog">
+        <div class="modal-header">
+          <h2 id="categoryRecordsTitle">分类明细</h2>
+          <button type="button" class="icon-button" id="closeCategoryRecordsBtn" aria-label="关闭">×</button>
+        </div>
+        <div class="record-list" id="categoryRecordsList" style="max-height: 60vh; overflow-y: auto; padding-right: 4px;"></div>
       </form>
     </dialog>
 
